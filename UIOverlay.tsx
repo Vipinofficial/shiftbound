@@ -2,6 +2,7 @@
 import React from 'react';
 import { GameState } from './types';
 import { LEVELS } from './levels';
+import { audio } from './audio';
 
 interface UIOverlayProps {
   gameState: GameState;
@@ -9,13 +10,16 @@ interface UIOverlayProps {
   onRestart: () => void;
   onResume: () => void;
   onRealityToggle: () => void;
+  onSizeToggle: () => void;
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onResume, onRealityToggle }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onResume, onRealityToggle, onSizeToggle }) => {
   const level = LEVELS[gameState.currentLevel];
   const isShifted = gameState.reality === 'SHIFTED';
+  const isSmall = gameState.playerSize === 'SMALL';
 
   const setTouchInput = (key: string, active: boolean) => {
+    if (active) audio.playClick();
     inputs.current[key] = active;
   };
 
@@ -58,11 +62,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onR
         <div className="text-[10px] text-white font-bold mt-2">{Math.floor(gameState.stability)}%</div>
       </div>
 
-      {/* Reality Status Indicator */}
-      <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 transition-opacity duration-300 ${isShifted ? 'opacity-30' : 'opacity-0'}`}>
-         <h3 className="text-6xl md:text-9xl font-black text-red-900/50 uppercase italic tracking-tighter">SHIFTED</h3>
-      </div>
-
       {/* Control Overlay */}
       <div className="mt-auto flex justify-between items-end w-full pointer-events-auto">
         <div className="flex items-center gap-3">
@@ -84,16 +83,26 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onR
           </div>
         </div>
 
-        <div className="flex items-end gap-3 md:gap-6">
-          <div 
-            onPointerDown={onRealityToggle}
+        <div className="flex items-end gap-2 md:gap-4">
+          <button 
+            onPointerDown={() => { audio.playClick(); onSizeToggle(); }}
+            className={`w-14 h-14 md:w-16 md:h-16 flex flex-col items-center justify-center rounded-xl border-2 transition-all active:scale-90 ${isSmall ? 'bg-amber-600/40 border-amber-400' : 'bg-slate-900/70 border-slate-700'}`}
+          >
+            <div className="text-[8px] font-black opacity-50 mb-1">SIZE</div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              {isSmall ? <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/> : <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>}
+            </svg>
+          </button>
+
+          <button 
+            onPointerDown={() => { audio.playClick(); onRealityToggle(); }}
             className={`w-14 h-14 md:w-20 md:h-20 flex flex-col items-center justify-center rounded-full border-2 transition-all active:scale-90 ${isShifted ? 'bg-rose-600/40 border-rose-400' : 'bg-slate-900/70 border-slate-700'}`}
           >
             <div className="text-[8px] font-black opacity-50 mb-1">SHIFT</div>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M7 11V7l-5 5 5 5v-4h10v4l5-5-5-5v4z"/></svg>
-          </div>
+          </button>
           
-          <div 
+          <button 
             onPointerDown={() => setTouchInput('TOUCH_JUMP', true)}
             onPointerUp={() => setTouchInput('TOUCH_JUMP', false)}
             onPointerLeave={() => setTouchInput('TOUCH_JUMP', false)}
@@ -101,12 +110,12 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onR
           >
             <div className="text-[10px] font-black mb-1">JUMP</div>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className={isShifted ? 'rotate-180' : ''}><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-          </div>
+          </button>
         </div>
       </div>
 
       <button 
-        onClick={onRestart}
+        onClick={() => { audio.playClick(); onRestart(); }}
         className="absolute top-1/2 right-4 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-slate-900/50 hover:bg-white hover:text-black border border-white/10 rounded-full transition-all pointer-events-auto"
       >
         <span className="text-xl">↻</span>
@@ -117,7 +126,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onR
           <div className="text-center">
             <h2 className="text-6xl md:text-8xl font-black mb-12 italic tracking-tighter text-white">STASIS</h2>
             <button 
-              onClick={onResume}
+              onClick={() => { audio.playClick(); onResume(); }}
               className="px-16 py-4 bg-white text-black font-black hover:bg-sky-400 transition-all uppercase tracking-[0.4em] text-sm"
             >
               Resume Fragment

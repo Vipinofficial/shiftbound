@@ -1,5 +1,6 @@
 
 export type Reality = 'NORMAL' | 'SHIFTED';
+export type PlayerSize = 'NORMAL' | 'SMALL';
 
 export interface Vector2D {
   x: number;
@@ -21,6 +22,13 @@ export interface Platform extends Entity {
   type: 'platform';
   reality: 'BOTH' | 'NORMAL' | 'SHIFTED';
   isHazard?: boolean;
+  // Moving platform properties
+  isMoving?: boolean;
+  moveRangeX?: number;
+  moveRangeY?: number;
+  moveSpeed?: number;
+  initialX?: number;
+  initialY?: number;
 }
 
 export interface Shard extends Vector2D {
@@ -48,6 +56,7 @@ export interface GameState {
   currentLevel: number;
   status: 'MENU' | 'PLAYING' | 'PAUSED' | 'WON' | 'GAMEOVER' | 'STORY';
   reality: Reality;
+  playerSize: PlayerSize;
   stability: number;
   timeRemaining: number;
   attempts: number;

@@ -8,9 +8,7 @@ export const LEVELS: Level[] = [
     description: "Your weight is a suggestion. Use SPACE or the Shift button to flip gravity. Shifting costs stability—don't let it reach zero.",
     timeLimit: 40,
     playerStart: { x: 100, y: 650 },
-    shards: [
-      { id: 's1', x: 600, y: 400, collected: false }
-    ],
+    shards: [{ id: 's1', x: 600, y: 400, collected: false }],
     goal: { id: 'goal', x: 1100, y: 650, width: 40, height: 60, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
     platforms: [
       { id: 'start', x: 0, y: 720, width: 350, height: 80, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
@@ -49,9 +47,7 @@ export const LEVELS: Level[] = [
     description: "Momentum is preserved across planes. Leap from the ground and flip mid-air to navigate the void.",
     timeLimit: 50,
     playerStart: { x: 50, y: 400 },
-    shards: [
-      { id: 's1', x: 600, y: 400, collected: false }
-    ],
+    shards: [{ id: 's1', x: 600, y: 400, collected: false }],
     goal: { id: 'goal', x: 1100, y: 350, width: 60, height: 60, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
     platforms: [
       { id: 'start', x: 0, y: 450, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
@@ -69,10 +65,7 @@ export const LEVELS: Level[] = [
     description: "The world is flickering. Platforms appear and disappear as you shift. Time your jumps to the pulse of the void.",
     timeLimit: 60,
     playerStart: { x: 50, y: 700 },
-    shards: [
-      { id: 's1', x: 400, y: 500, collected: false },
-      { id: 's2', x: 800, y: 300, collected: false }
-    ],
+    shards: [{ id: 's1', x: 400, y: 500, collected: false }, { id: 's2', x: 800, y: 300, collected: false }],
     goal: { id: 'goal', x: 1100, y: 100, width: 50, height: 50, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
     platforms: [
       { id: 'start', x: 0, y: 750, width: 200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
@@ -92,10 +85,7 @@ export const LEVELS: Level[] = [
     description: "Sometimes the path is only visible from the other side. Shift mid-air to discover hidden footholds.",
     timeLimit: 70,
     playerStart: { x: 1100, y: 700 },
-    shards: [
-      { id: 's1', x: 600, y: 400, collected: false },
-      { id: 's2', x: 100, y: 700, collected: false }
-    ],
+    shards: [{ id: 's1', x: 600, y: 400, collected: false }, { id: 's2', x: 100, y: 700, collected: false }],
     goal: { id: 'goal', x: 50, y: 100, width: 60, height: 60, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
     platforms: [
       { id: 'start', x: 1000, y: 750, width: 200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
@@ -132,6 +122,118 @@ export const LEVELS: Level[] = [
       { id: 'haz-wall-r', x: 1180, y: 0, width: 20, height: 800, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true },
       { id: 'haz-ceil', x: 0, y: 0, width: 1200, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isHazard: true },
       { id: 'haz-floor', x: 0, y: 780, width: 1200, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED', isHazard: true },
+    ],
+    enemies: []
+  },
+  {
+    id: 7,
+    title: "Kinetic Drift",
+    description: "REBALANCED: The foundations are moving slower now. Catch the fragments to cross the abyss.",
+    timeLimit: 60,
+    playerStart: { x: 50, y: 700 },
+    shards: [{ id: 's1', x: 600, y: 400, collected: false }],
+    goal: { id: 'goal', x: 1100, y: 700, width: 50, height: 50, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
+    platforms: [
+      { id: 'start', x: 0, y: 750, width: 200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'm1', x: 300, y: 600, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isMoving: true, moveRangeY: 200, moveSpeed: 0.003 },
+      { id: 'm2', x: 550, y: 400, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED', isMoving: true, moveRangeX: 200, moveSpeed: 0.004 },
+      { id: 'm3', x: 800, y: 600, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isMoving: true, moveRangeY: -250, moveSpeed: 0.003 },
+      { id: 'end', x: 1000, y: 750, width: 200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'haz', x: 200, y: 790, width: 800, height: 10, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true },
+    ],
+    enemies: []
+  },
+  {
+    id: 8,
+    title: "The Micro-Tunnel",
+    description: "New Protocol: Size Shift. Toggle size to fit through tight shafts. (SHIFT/CTRL to toggle size)",
+    timeLimit: 80,
+    playerStart: { x: 50, y: 700 },
+    shards: [{ id: 's1', x: 1100, y: 350, collected: false }],
+    goal: { id: 'goal', x: 50, y: 150, width: 40, height: 40, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
+    platforms: [
+      { id: 'floor', x: 0, y: 750, width: 1200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'wall1', x: 300, y: 550, width: 600, height: 200, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL' },
+      { id: 'shaft1', x: 300, y: 510, width: 600, height: 40, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isHazard: false },
+      { id: 'wall2', x: 300, y: 480, width: 600, height: 30, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL' },
+      { id: 's-plat', x: 1000, y: 400, width: 200, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'return-p', x: 0, y: 200, width: 300, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+    ],
+    enemies: []
+  },
+  {
+    id: 9,
+    title: "Molecular Turbulence",
+    description: "REBALANCED: Slow and steady. Combine all protocols to find the path.",
+    timeLimit: 100,
+    playerStart: { x: 50, y: 400 },
+    shards: [{ id: 's1', x: 600, y: 400, collected: false }],
+    goal: { id: 'goal', x: 1100, y: 400, width: 50, height: 50, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
+    platforms: [
+      { id: 'start', x: 0, y: 450, width: 100, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'moving-haz', x: 200, y: 300, width: 50, height: 200, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true, isMoving: true, moveRangeY: 300, moveSpeed: 0.005 },
+      { id: 'tight-gap-n', x: 400, y: 0, width: 50, height: 380, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'tight-gap-s', x: 400, y: 420, width: 50, height: 380, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'drift-p', x: 600, y: 400, width: 100, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED', isMoving: true, moveRangeX: 300, moveSpeed: 0.004 },
+      { id: 'end-p', x: 1050, y: 450, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+    ],
+    enemies: []
+  },
+  {
+    id: 10,
+    title: "The Compression Chamber",
+    description: "Hazards are closing in. Shrink and shift to avoid being crushed between the timelines.",
+    timeLimit: 60,
+    playerStart: { x: 50, y: 400 },
+    shards: [{ id: 's1', x: 1100, y: 700, collected: false }],
+    goal: { id: 'goal', x: 1100, y: 400, width: 60, height: 60, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
+    platforms: [
+      { id: 's', x: 0, y: 350, width: 150, height: 100, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'h-top', x: 200, y: 0, width: 800, height: 100, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true, isMoving: true, moveRangeY: 250, moveSpeed: 0.002 },
+      { id: 'h-bot', x: 200, y: 700, width: 800, height: 100, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true, isMoving: true, moveRangeY: -250, moveSpeed: 0.002 },
+      { id: 'm-p', x: 250, y: 400, width: 100, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isMoving: true, moveRangeX: 600, moveSpeed: 0.003 },
+      { id: 'm-p-s', x: 850, y: 400, width: 100, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED', isMoving: true, moveRangeX: -600, moveSpeed: 0.003 },
+      { id: 'e', x: 1050, y: 350, width: 150, height: 100, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+    ],
+    enemies: []
+  },
+  {
+    id: 11,
+    title: "Quantum Needle",
+    description: "Tiny gaps and massive hazards. The stability cost is high, but the destination is close.",
+    timeLimit: 90,
+    playerStart: { x: 600, y: 700 },
+    shards: [{ id: 's1', x: 600, y: 400, collected: false }, { id: 's2', x: 100, y: 100, collected: false }, { id: 's3', x: 1100, y: 100, collected: false }],
+    goal: { id: 'goal', x: 600, y: 50, width: 40, height: 40, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
+    platforms: [
+      { id: 'start', x: 500, y: 750, width: 200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'gate1-l', x: 0, y: 550, width: 580, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'gate1-r', x: 620, y: 550, width: 580, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'gate2-l', x: 0, y: 350, width: 590, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED' },
+      { id: 'gate2-r', x: 610, y: 350, width: 590, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED' },
+      { id: 'haz-l', x: 0, y: 0, width: 50, height: 800, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true },
+      { id: 'haz-r', x: 1150, y: 0, width: 50, height: 800, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true },
+      { id: 'final-m', x: 550, y: 150, width: 100, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isMoving: true, moveRangeX: 200, moveSpeed: 0.002 },
+    ],
+    enemies: []
+  },
+  {
+    id: 12,
+    title: "The Singularity",
+    description: "The core is collapsing. Everything you have learned ends here. Escape the fragment.",
+    timeLimit: 120,
+    playerStart: { x: 50, y: 700 },
+    shards: [{ id: 's1', x: 1100, y: 100, collected: false }],
+    goal: { id: 'goal', x: 1100, y: 700, width: 80, height: 80, vx: 0, vy: 0, color: '#facc15', type: 'goal' },
+    platforms: [
+      { id: 'p1', x: 0, y: 750, width: 150, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
+      { id: 'h1', x: 200, y: 600, width: 100, height: 100, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true, isMoving: true, moveRangeY: 300, moveSpeed: 0.004 },
+      { id: 'h2', x: 400, y: 200, width: 100, height: 100, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true, isMoving: true, moveRangeY: -300, moveSpeed: 0.005 },
+      { id: 'p2', x: 300, y: 400, width: 50, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL' },
+      { id: 'p3', x: 500, y: 400, width: 50, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED' },
+      { id: 'm-end', x: 700, y: 100, width: 300, height: 600, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isMoving: true, moveRangeY: 50, moveSpeed: 0.001 },
+      { id: 'tunnel', x: 700, y: 350, width: 300, height: 30, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: false },
+      { id: 'exit', x: 1000, y: 750, width: 200, height: 50, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
     ],
     enemies: []
   }

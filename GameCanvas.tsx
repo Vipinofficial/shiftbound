@@ -1,7 +1,8 @@
 
 import React, { useRef, useEffect } from 'react';
-import { Level, GameState, Reality, Entity, Shard } from './types';
+import { Level, GameState, Reality, Entity, Shard, Platform } from './types';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, PHYSICS, THEME } from './constants';
+import { audio } from './audio';
 
 interface GameCanvasProps {
   level: Level;
@@ -11,16 +12,18 @@ interface GameCanvasProps {
   onFail: () => void;
   onCollectShard: () => void;
   onRealityChange: () => void;
+  onSizeChange: () => void;
 }
 
 const SPRITE_SIZE = 64;
 const IDLE_FRAMES = 4;
 const RUN_FRAMES = 6;
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin, onFail, onCollectShard, onRealityChange }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin, onFail, onCollectShard, onRealityChange, onSizeChange }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const spriteSheetRef = useRef<HTMLCanvasElement | null>(null);
   const shardsRef = useRef<Shard[]>([]);
+  const platformsRef = useRef<Platform[]>([]);
   
   const playerRef = useRef<Entity & { 
     trail: { x: number, y: number }[],
@@ -43,6 +46,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
   });
   
   const realityRef = useRef<Reality>(gameState.reality);
+  const playerSizeRef = useRef(gameState.playerSize);
   const statusRef = useRef<GameState['status']>(gameState.status);
   const isGroundedRef = useRef<boolean>(false);
   const coyoteTimeRef = useRef<number>(0);
@@ -95,8 +99,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
 
   useEffect(() => {
     realityRef.current = gameState.reality;
+    playerSizeRef.current = gameState.playerSize;
     statusRef.current = gameState.status;
-  }, [gameState.reality, gameState.status]);
+  }, [gameState.reality, gameState.playerSize, gameState.status]);
 
   useEffect(() => {
     playerRef.current = {
@@ -107,6 +112,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       trail: []
     };
     shardsRef.current = level.shards.map(s => ({ ...s }));
+    platformsRef.current = level.platforms.map(p => ({
+      ...p,
+      initialX: p.x,
+      initialY: p.y
+    }));
     isGroundedRef.current = false;
     coyoteTimeRef.current = 0;
   }, [level]);
@@ -117,6 +127,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       inputs.current[e.code] = true;
       if (e.code === 'Space' && shiftCooldownRef.current <= 0) {
         onRealityChange();
+        shiftCooldownRef.current = 25;
+      }
+      if ((e.code === 'ShiftLeft' || e.code === 'ControlLeft') && shiftCooldownRef.current <= 0) {
+        onSizeChange();
         shiftCooldownRef.current = 25;
       }
     };
@@ -139,26 +153,46 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       const player = playerRef.current;
       const currentReality = realityRef.current;
       const curInputs = inputs.current;
+      const sizeMultiplier = playerSizeRef.current === 'SMALL' ? 0.5 : 1;
+
+      // Update Player Dimensions
+      player.width = 28 * sizeMultiplier;
+      player.height = 42 * sizeMultiplier;
       
       const moveLeft = curInputs['KeyA'] || curInputs['ArrowLeft'] || curInputs['TOUCH_LEFT'];
       const moveRight = curInputs['KeyD'] || curInputs['ArrowRight'] || curInputs['TOUCH_RIGHT'];
       const jumpInput = curInputs['KeyW'] || curInputs['ArrowUp'] || curInputs['TOUCH_JUMP'];
 
-      if (moveLeft) { player.vx -= PHYSICS.MOVE_SPEED; player.lastVx = -1; }
-      else if (moveRight) { player.vx += PHYSICS.MOVE_SPEED; player.lastVx = 1; }
+      const moveSpeed = PHYSICS.MOVE_SPEED * (playerSizeRef.current === 'SMALL' ? 1.4 : 1);
+      if (moveLeft) { player.vx -= moveSpeed; player.lastVx = -1; }
+      else if (moveRight) { player.vx += moveSpeed; player.lastVx = 1; }
       else { player.vx *= PHYSICS.FRICTION; }
       
       if (jumpInput && (isGroundedRef.current || coyoteTimeRef.current > 0)) {
         player.vy = currentReality === 'NORMAL' ? PHYSICS.JUMP_FORCE : PHYSICS.SHIFTED_JUMP_FORCE;
         isGroundedRef.current = false;
         coyoteTimeRef.current = 0;
-        createBurst(player.x + 14, currentReality === 'NORMAL' ? player.y + 40 : player.y, THEME[currentReality].player);
+        audio.playJump();
+        createBurst(player.x + player.width/2, currentReality === 'NORMAL' ? player.y + player.height : player.y, THEME[currentReality].player);
       }
 
       player.vy += currentReality === 'NORMAL' ? PHYSICS.GRAVITY : PHYSICS.SHIFTED_GRAVITY;
       player.vx = Math.max(Math.min(player.vx, PHYSICS.MAX_SPEED), -PHYSICS.MAX_SPEED);
       player.x += player.vx;
       player.y += player.vy;
+
+      // Update Moving Platforms
+      const time = Date.now();
+      platformsRef.current.forEach(p => {
+        if (p.isMoving) {
+          const oldX = p.x;
+          const oldY = p.y;
+          if (p.moveRangeX) p.x = (p.initialX ?? p.x) + Math.sin(time * (p.moveSpeed ?? 0.02)) * p.moveRangeX;
+          if (p.moveRangeY) p.y = (p.initialY ?? p.y) + Math.sin(time * (p.moveSpeed ?? 0.02)) * p.moveRangeY;
+          p.vx = p.x - oldX;
+          p.vy = p.y - oldY;
+        }
+      });
 
       player.animTimer++;
       const isMoving = Math.abs(player.vx) > 0.5;
@@ -171,7 +205,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       if (player.trail.length > 8) player.trail.pop();
 
       isGroundedRef.current = false;
-      const activePlatforms = level.platforms.filter(p => p.reality === 'BOTH' || p.reality === currentReality);
+      const activePlatforms = platformsRef.current.filter(p => p.reality === 'BOTH' || p.reality === currentReality);
 
       for (const p of activePlatforms) {
         if (player.x < p.x + p.width && player.x + player.width > p.x &&
@@ -184,7 +218,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
 
           if (overlapX < overlapY) {
             player.x = player.x < p.x ? p.x - player.width : p.x + p.width;
-            player.vx = 0;
+            player.vx = p.vx ?? 0;
           } else {
             if (player.y < p.y) {
               player.y = p.y - player.height;
@@ -193,13 +227,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
               player.y = p.y + p.height;
               if (currentReality === 'SHIFTED') isGroundedRef.current = true;
             }
-            player.vy = 0;
+            player.vy = p.vy ?? 0;
+            if (p.isMoving) {
+              player.x += p.vx ?? 0;
+            }
           }
         }
       }
 
       shardsRef.current.forEach(s => {
-        if (!s.collected && Math.abs(player.x + 14 - s.x) < 30 && Math.abs(player.y + 20 - s.y) < 30) {
+        if (!s.collected && Math.abs(player.x + player.width/2 - s.x) < 30 && Math.abs(player.y + player.height/2 - s.y) < 30) {
           s.collected = true;
           onCollectShard();
           createBurst(s.x, s.y, '#facc15');
@@ -213,7 +250,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       particlesRef.current = particlesRef.current.filter(p => p.life > 0);
 
       const goal = level.goal;
-      if (Math.abs(player.x + 14 - (goal.x + goal.width/2)) < goal.width && Math.abs(player.y + 20 - (goal.y + goal.height/2)) < goal.height) {
+      if (Math.abs(player.x + player.width/2 - (goal.x + goal.width/2)) < goal.width && Math.abs(player.y + player.height/2 - (goal.y + goal.height/2)) < goal.height) {
         onWin(); return;
       }
 
@@ -238,7 +275,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       for (let x = 0; x < CANVAS_WIDTH; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_HEIGHT); ctx.stroke(); }
       for (let y = 0; y < CANVAS_HEIGHT; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_WIDTH, y); ctx.stroke(); }
 
-      level.platforms.forEach(p => {
+      platformsRef.current.forEach(p => {
         const active = p.reality === 'BOTH' || p.reality === curReality;
         if (p.isHazard) {
           ctx.fillStyle = theme.hazard;
@@ -275,6 +312,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       ctx.globalAlpha = 1.0;
 
       const p = playerRef.current;
+      const sizeMultiplier = playerSizeRef.current === 'SMALL' ? 0.5 : 1;
       if (spriteSheetRef.current) {
         const sheet = spriteSheetRef.current;
         const row = curReality === 'NORMAL' ? 0 : 1;
@@ -285,13 +323,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
         else frameIdx = p.animFrame % IDLE_FRAMES;
 
         ctx.save();
+        const drawX = p.x - (18 * sizeMultiplier);
+        const drawY = p.y - (12 * sizeMultiplier);
+        const drawSize = SPRITE_SIZE * sizeMultiplier;
+        
         p.trail.forEach((pos, i) => {
           ctx.globalAlpha = (1 - i / 8) * 0.15;
-          ctx.drawImage(sheet, frameIdx * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE, pos.x - 18, pos.y - 12, SPRITE_SIZE, SPRITE_SIZE);
+          ctx.drawImage(sheet, frameIdx * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE, pos.x - (18 * sizeMultiplier), pos.y - (12 * sizeMultiplier), drawSize, drawSize);
         });
         ctx.globalAlpha = 1.0;
         if (p.lastVx < 0) { ctx.translate(p.x + p.width/2, 0); ctx.scale(-1, 1); ctx.translate(-(p.x + p.width/2), 0); }
-        ctx.drawImage(sheet, frameIdx * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE, p.x - 18, p.y - 12, SPRITE_SIZE, SPRITE_SIZE);
+        ctx.drawImage(sheet, frameIdx * SPRITE_SIZE, row * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE, drawX, drawY, drawSize, drawSize);
         ctx.restore();
       }
 
@@ -314,7 +356,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [level, onWin, onFail, onRealityChange, inputs, gameState.stability, onCollectShard]);
+  }, [level, onWin, onFail, onRealityChange, onSizeChange, inputs, gameState.stability, onCollectShard]);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">

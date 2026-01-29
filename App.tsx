@@ -1,17 +1,20 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GameState, Reality } from './types';
+import { GameState, Reality, PlayerSize } from './types';
 import { LEVELS } from './levels';
 import GameCanvas from './GameCanvas';
 import UIOverlay from './UIOverlay';
+import { audio } from './audio';
 
-const STABILITY_COST = 15;
+const STABILITY_COST_SHIFT = 15;
+const STABILITY_COST_SIZE = 10;
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
     currentLevel: 0,
     status: 'MENU',
     reality: 'NORMAL',
+    playerSize: 'NORMAL',
     stability: 100,
     timeRemaining: 0,
     attempts: 0,
@@ -20,8 +23,8 @@ const App: React.FC = () => {
   const inputRef = useRef<Record<string, boolean>>({});
 
   const startLevel = useCallback((levelIndex: number) => {
+    audio.playClick();
     const level = LEVELS[levelIndex];
-    // CLEAR INPUTS: Fix for character moving on its own
     inputRef.current = {};
     
     setGameState(prev => ({
@@ -29,6 +32,7 @@ const App: React.FC = () => {
       currentLevel: levelIndex,
       status: 'PLAYING',
       reality: 'NORMAL',
+      playerSize: 'NORMAL',
       stability: 100,
       timeRemaining: level.timeLimit,
       attempts: prev.currentLevel === levelIndex ? prev.attempts + 1 : 1,
@@ -36,46 +40,64 @@ const App: React.FC = () => {
   }, []);
 
   const nextLevel = useCallback(() => {
+    audio.playClick();
     if (gameState.currentLevel + 1 < LEVELS.length) {
       startLevel(gameState.currentLevel + 1);
     } else {
       setGameState(prev => ({ ...prev, status: 'WON' }));
+      audio.playWin();
     }
   }, [gameState.currentLevel, startLevel]);
 
   const restartLevel = useCallback(() => {
+    audio.playClick();
     startLevel(gameState.currentLevel);
   }, [gameState.currentLevel, startLevel]);
 
   const handleLevelWin = useCallback(() => {
+    audio.playWin();
     setGameState(prev => ({ ...prev, status: 'STORY' }));
   }, []);
 
   const handleLevelFail = useCallback(() => {
+    audio.playFail();
     setGameState(prev => ({ ...prev, status: 'GAMEOVER' }));
   }, []);
 
   const toggleReality = useCallback(() => {
     setGameState(prev => {
       if (prev.status !== 'PLAYING') return prev;
-      if (prev.stability < STABILITY_COST) return prev; // Cannot shift if stability too low
-
+      if (prev.stability < STABILITY_COST_SHIFT) return prev; 
+      audio.playShift();
       return {
         ...prev,
         reality: prev.reality === 'NORMAL' ? 'SHIFTED' : 'NORMAL',
-        stability: Math.max(0, prev.stability - STABILITY_COST)
+        stability: Math.max(0, prev.stability - STABILITY_COST_SHIFT)
+      };
+    });
+  }, []);
+
+  const toggleSize = useCallback(() => {
+    setGameState(prev => {
+      if (prev.status !== 'PLAYING') return prev;
+      if (prev.stability < STABILITY_COST_SIZE) return prev;
+      audio.playSize();
+      return {
+        ...prev,
+        playerSize: prev.playerSize === 'NORMAL' ? 'SMALL' : 'NORMAL',
+        stability: Math.max(0, prev.stability - STABILITY_COST_SIZE)
       };
     });
   }, []);
 
   const recoverStability = useCallback((amount: number) => {
+    audio.playCollect();
     setGameState(prev => ({
       ...prev,
       stability: Math.min(100, prev.stability + amount)
     }));
   }, []);
 
-  // Timers and recovery
   useEffect(() => {
     let interval: any;
     if (gameState.status === 'PLAYING') {
@@ -85,7 +107,6 @@ const App: React.FC = () => {
             handleLevelFail();
             return prev;
           }
-          // Slow recovery of stability - slightly increased for tougher levels
           const newStability = Math.min(100, prev.stability + 0.8);
           return { 
             ...prev, 
@@ -118,7 +139,7 @@ const App: React.FC = () => {
               INITIATE
             </button>
             <p className="text-slate-500 text-[10px] md:text-sm mt-4 italic font-mono uppercase tracking-widest opacity-60">
-              Desktop: WASD + SPACE<br/>Mobile: Touch Controls Enabled
+              WASD/ARROWS: MOVE | SPACE: SHIFT | SHIFT/CTRL: SIZE<br/>Mobile: Touch Controls
             </p>
           </div>
         </div>
@@ -149,6 +170,7 @@ const App: React.FC = () => {
             onFail={handleLevelFail}
             onCollectShard={() => recoverStability(40)}
             onRealityChange={toggleReality}
+            onSizeChange={toggleSize}
           />
           <UIOverlay 
             gameState={gameState} 
@@ -156,6 +178,7 @@ const App: React.FC = () => {
             onRestart={restartLevel} 
             onResume={() => setGameState(prev => ({ ...prev, status: 'PLAYING' }))}
             onRealityToggle={toggleReality}
+            onSizeToggle={toggleSize}
           />
         </div>
       )}
@@ -178,7 +201,7 @@ const App: React.FC = () => {
           <h2 className="text-5xl md:text-8xl font-black text-blue-400 mb-4 tracking-tighter">BOUNDARIES BROKEN</h2>
           <p className="text-white text-lg md:text-xl font-light mb-12 opacity-80">You have escaped the fractured dimension.</p>
           <button 
-            onClick={() => setGameState(prev => ({ ...prev, status: 'MENU' }))}
+            onClick={() => { audio.playClick(); setGameState(prev => ({ ...prev, status: 'MENU' })); }}
             className="px-8 py-3 border border-white hover:bg-white hover:text-black transition-all font-bold tracking-widest"
           >
             RETURN TO VOID
