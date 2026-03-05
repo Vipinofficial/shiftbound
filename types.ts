@@ -60,4 +60,11 @@ export interface GameState {
   stability: number;
   timeRemaining: number;
   attempts: number;
+  shardsCollected: number;
+  shardsTotal: number;
+  resonance: number;
+  score: number;
+  lastLevelScore: number;
+  totalAttempts: number;
+  maxLevelReached: number;
 }

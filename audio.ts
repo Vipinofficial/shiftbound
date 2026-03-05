@@ -100,6 +100,66 @@ class AudioManager {
     osc.stop(this.ctx.currentTime + 0.5);
   }
 
+  playLavaSplash() {
+    this.resume();
+    if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    const burst = this.ctx.createOscillator();
+    const burstGain = this.ctx.createGain();
+    burst.type = 'triangle';
+    burst.frequency.setValueAtTime(190, now);
+    burst.frequency.exponentialRampToValueAtTime(70, now + 0.18);
+    burstGain.gain.setValueAtTime(0.24, now);
+    burstGain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    burst.connect(burstGain);
+    burstGain.connect(this.masterGain);
+    burst.start(now);
+    burst.stop(now + 0.2);
+
+    const hiss = this.ctx.createOscillator();
+    const hissGain = this.ctx.createGain();
+    hiss.type = 'sawtooth';
+    hiss.frequency.setValueAtTime(820, now);
+    hiss.frequency.exponentialRampToValueAtTime(260, now + 0.35);
+    hissGain.gain.setValueAtTime(0.08, now + 0.03);
+    hissGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+    hiss.connect(hissGain);
+    hissGain.connect(this.masterGain);
+    hiss.start(now + 0.03);
+    hiss.stop(now + 0.4);
+  }
+
+  playPortalTeleport() {
+    this.resume();
+    if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    const whoosh = this.ctx.createOscillator();
+    const whooshGain = this.ctx.createGain();
+    whoosh.type = 'sine';
+    whoosh.frequency.setValueAtTime(260, now);
+    whoosh.frequency.exponentialRampToValueAtTime(980, now + 0.32);
+    whooshGain.gain.setValueAtTime(0.18, now);
+    whooshGain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    whoosh.connect(whooshGain);
+    whooshGain.connect(this.masterGain);
+    whoosh.start(now);
+    whoosh.stop(now + 0.35);
+
+    const shimmer = this.ctx.createOscillator();
+    const shimmerGain = this.ctx.createGain();
+    shimmer.type = 'triangle';
+    shimmer.frequency.setValueAtTime(620, now + 0.05);
+    shimmer.frequency.linearRampToValueAtTime(360, now + 0.38);
+    shimmerGain.gain.setValueAtTime(0.1, now + 0.05);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.01, now + 0.42);
+    shimmer.connect(shimmerGain);
+    shimmerGain.connect(this.masterGain);
+    shimmer.start(now + 0.05);
+    shimmer.stop(now + 0.42);
+  }
+
   playWin() {
     this.resume();
     if (!this.ctx || !this.masterGain) return;
