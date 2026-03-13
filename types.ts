@@ -1,6 +1,20 @@
 
 export type Reality = 'NORMAL' | 'SHIFTED';
 export type PlayerSize = 'NORMAL' | 'SMALL';
+export type DifficultyMode = 'EASY' | 'INTERMEDIATE' | 'HARD';
+export type DesktopActionOrder = 'PAUSE_FIRST' | 'RESTART_FIRST';
+export type DesktopMovePreset = 'WASD' | 'ARROWS';
+export type MobileTouchDock = 'BOTTOM' | 'TOP_LEFT' | 'TOP_RIGHT';
+export type MobileClusterOrder = 'MOVE_LEFT_ACTION_RIGHT' | 'ACTION_LEFT_MOVE_RIGHT';
+export type FailReason = 'LAVA' | 'MONSTER' | 'VOID' | 'TIME' | 'UNKNOWN';
+
+export interface DesktopInputBindings {
+  moveLeft: string;
+  moveRight: string;
+  jump: string;
+  toggleReality: string;
+  toggleSize: string;
+}
 
 export interface Vector2D {
   x: number;
@@ -64,7 +78,16 @@ export interface GameState {
   shardsTotal: number;
   resonance: number;
   score: number;
+  hardLives: number;
   lastLevelScore: number;
   totalAttempts: number;
   maxLevelReached: number;
+}
+
+export interface ControlLayoutSettings {
+  desktopActionOrder: DesktopActionOrder;
+  desktopMovePreset: DesktopMovePreset;
+  desktopBindings: DesktopInputBindings;
+  mobileTouchDock: MobileTouchDock;
+  mobileClusterOrder: MobileClusterOrder;
 }

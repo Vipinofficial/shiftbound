@@ -1,28 +1,163 @@
 
-import React from 'react';
-import { GameState } from './types';
+import React, { useMemo, useState } from 'react';
+import { GameState, ControlLayoutSettings, DifficultyMode } from './types';
 import { LEVELS } from './levels';
 import { audio } from './audio';
+
+const WASD_BINDINGS = {
+  moveLeft: 'KeyA',
+  moveRight: 'KeyD',
+  jump: 'Space',
+  toggleReality: 'ShiftLeft',
+  toggleSize: 'ControlLeft'
+};
+
+const ARROW_BINDINGS = {
+  moveLeft: 'ArrowLeft',
+  moveRight: 'ArrowRight',
+  jump: 'Space',
+  toggleReality: 'ShiftRight',
+  toggleSize: 'ControlRight'
+};
+
+const DESKTOP_KEY_OPTIONS = [
+  { code: 'KeyA', label: 'A' },
+  { code: 'KeyD', label: 'D' },
+  { code: 'ArrowLeft', label: 'Left Arrow' },
+  { code: 'ArrowRight', label: 'Right Arrow' },
+  { code: 'KeyW', label: 'W' },
+  { code: 'ArrowUp', label: 'Up Arrow' },
+  { code: 'Space', label: 'Space' },
+  { code: 'ShiftLeft', label: 'Left Shift' },
+  { code: 'ShiftRight', label: 'Right Shift' },
+  { code: 'ControlLeft', label: 'Left Ctrl' },
+  { code: 'ControlRight', label: 'Right Ctrl' },
+  { code: 'KeyQ', label: 'Q' },
+  { code: 'KeyE', label: 'E' },
+  { code: 'KeyR', label: 'R' },
+  { code: 'KeyF', label: 'F' }
+];
 
 interface UIOverlayProps {
   gameState: GameState;
   inputs: React.MutableRefObject<Record<string, boolean>>;
+  controlSettings: ControlLayoutSettings;
+  difficultyMode: DifficultyMode;
   onRestart: () => void;
   onPause: () => void;
   onResume: () => void;
   onRealityToggle: () => void;
   onSizeToggle: () => void;
+  onControlSettingsChange: React.Dispatch<React.SetStateAction<ControlLayoutSettings>>;
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onPause, onResume, onRealityToggle, onSizeToggle }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, controlSettings, difficultyMode, onRestart, onPause, onResume, onRealityToggle, onSizeToggle, onControlSettingsChange }) => {
   const level = LEVELS[gameState.currentLevel];
   const isShifted = gameState.reality === 'SHIFTED';
   const isSmall = gameState.playerSize === 'SMALL';
   const timePct = Math.max(0, Math.min(100, (gameState.timeRemaining / level.timeLimit) * 100));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const heartLives = [0, 1, 2].map(index => {
+    const value = gameState.hardLives - index;
+    if (value >= 1) return 'full';
+    if (value >= 0.5) return 'half';
+    return 'empty';
+  });
 
   const setTouchInput = (key: string, active: boolean) => {
     if (active) audio.playClick();
     inputs.current[key] = active;
+  };
+
+  const actionOrder = controlSettings.desktopActionOrder === 'PAUSE_FIRST'
+    ? ['pause', 'restart']
+    : ['restart', 'pause'];
+
+  const isBottomMobileDock = controlSettings.mobileTouchDock === 'BOTTOM';
+  const mobileDockClassName = isBottomMobileDock
+    ? 'mt-auto w-full pointer-events-auto md:hidden'
+    : `absolute top-24 ${controlSettings.mobileTouchDock === 'TOP_LEFT' ? 'left-2' : 'right-2'} pointer-events-auto md:hidden z-40`;
+
+  const movementControls = (
+    <div className="flex items-center gap-2" key="move">
+      <div
+        onPointerDown={() => setTouchInput('TOUCH_LEFT', true)}
+        onPointerUp={() => setTouchInput('TOUCH_LEFT', false)}
+        onPointerLeave={() => setTouchInput('TOUCH_LEFT', false)}
+        className="ui-control-btn w-11 h-11"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="rotate-180"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+      <div
+        onPointerDown={() => setTouchInput('TOUCH_RIGHT', true)}
+        onPointerUp={() => setTouchInput('TOUCH_RIGHT', false)}
+        onPointerLeave={() => setTouchInput('TOUCH_RIGHT', false)}
+        className="ui-control-btn w-11 h-11"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </div>
+    </div>
+  );
+
+  const actionControls = (
+    <div className="flex items-end gap-2" key="action">
+      <button
+        onPointerDown={() => { audio.playClick(); onSizeToggle(); }}
+        className={`w-11 h-11 flex flex-col items-center justify-center rounded-xl border transition-all active:scale-90 ${isSmall ? 'bg-amber-500/25 border-amber-300 text-amber-100 shadow-[0_0_16px_rgba(251,191,36,0.35)]' : 'bg-slate-900/70 border-slate-600 text-slate-200'}`}
+      >
+        <div className="text-[7px] font-black opacity-60 mb-0.5">SIZE</div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          {isSmall ? <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/> : <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>}
+        </svg>
+      </button>
+
+      <button
+        onPointerDown={() => { audio.playClick(); onRealityToggle(); }}
+        className={`w-11 h-11 flex flex-col items-center justify-center rounded-full border transition-all active:scale-90 ${isShifted ? 'bg-rose-500/30 border-rose-300 text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.35)]' : 'bg-slate-900/70 border-slate-600 text-slate-200'}`}
+      >
+        <div className="text-[7px] font-black opacity-60 mb-0.5">SHIFT</div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M7 11V7l-5 5 5 5v-4h10v4l5-5-5-5v4z"/></svg>
+      </button>
+
+      <button
+        onPointerDown={() => setTouchInput('TOUCH_JUMP', true)}
+        onPointerUp={() => setTouchInput('TOUCH_JUMP', false)}
+        onPointerLeave={() => setTouchInput('TOUCH_JUMP', false)}
+        className="w-14 h-14 bg-gradient-to-br from-sky-500/45 to-cyan-400/25 border border-sky-300 flex flex-col items-center justify-center rounded-full active:scale-90 transition-all shadow-[0_0_22px_rgba(56,189,248,0.4)]"
+      >
+        <div className="text-[8px] font-black mb-0.5">JUMP</div>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className={isShifted ? 'rotate-180' : ''}><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </div>
+  );
+
+  const mobileClusters = useMemo(
+    () => controlSettings.mobileClusterOrder === 'MOVE_LEFT_ACTION_RIGHT'
+      ? [movementControls, actionControls]
+      : [actionControls, movementControls],
+    [controlSettings.mobileClusterOrder, actionControls, movementControls]
+  );
+
+  const updateLayoutSetting = <K extends keyof ControlLayoutSettings>(key: K, value: ControlLayoutSettings[K]) => {
+    onControlSettingsChange(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updateDesktopBinding = (key: keyof ControlLayoutSettings['desktopBindings'], value: string) => {
+    onControlSettingsChange(prev => ({
+      ...prev,
+      desktopBindings: {
+        ...prev.desktopBindings,
+        [key]: value
+      }
+    }));
+  };
+
+  const applyDesktopPreset = (preset: ControlLayoutSettings['desktopMovePreset']) => {
+    onControlSettingsChange(prev => ({
+      ...prev,
+      desktopMovePreset: preset,
+      desktopBindings: preset === 'WASD' ? { ...WASD_BINDINGS } : { ...ARROW_BINDINGS }
+    }));
   };
 
   return (
@@ -37,25 +172,197 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onP
             <div className="mt-1 flex items-center gap-2 text-[9px] md:text-[10px] uppercase tracking-[0.12em] text-slate-300/80 flex-wrap">
               <span className="px-2 py-0.5 rounded-full border border-cyan-300/35 bg-cyan-400/10">Shards {gameState.shardsCollected}/{gameState.shardsTotal}</span>
               <span className="px-2 py-0.5 rounded-full border border-fuchsia-300/35 bg-fuchsia-400/10">Res {gameState.resonance}</span>
+              {difficultyMode === 'HARD' && (
+                <span className="px-2 py-0.5 rounded-full border border-rose-300/40 bg-rose-500/15 text-rose-100 inline-flex items-center gap-1">
+                  <span className="tracking-[0.08em]">Lives</span>
+                  <span className="inline-flex items-center gap-0.5 text-[16px] leading-none">
+                    {heartLives.map((heart, idx) => (
+                      <span
+                        key={`heart-${idx}`}
+                        className={
+                          heart === 'full'
+                            ? 'text-rose-200'
+                            : heart === 'half'
+                              ? 'text-rose-200/70'
+                              : 'text-slate-500/70'
+                        }
+                      >
+                        {heart === 'half' ? '🫀' : '❤'}
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {gameState.status === 'PLAYING' && (
-              <button
-                onClick={() => { audio.playClick(); onPause(); }}
-                className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-slate-900/70 hover:bg-white hover:text-black border border-slate-400/20 rounded-full transition-all shadow-xl"
-              >
-                <span className="text-sm md:text-base">⏸</span>
-              </button>
-            )}
+            {actionOrder.map(action => {
+              if (action === 'pause') {
+                if (gameState.status !== 'PLAYING') return null;
+                return (
+                  <button
+                    key="pause"
+                    onClick={() => { audio.playClick(); onPause(); }}
+                    className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-slate-900/70 hover:bg-white hover:text-black border border-slate-400/20 rounded-full transition-all shadow-xl"
+                  >
+                    <span className="text-sm md:text-base">⏸</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key="restart"
+                  onClick={() => { audio.playClick(); onRestart(); }}
+                  className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-slate-900/70 hover:bg-white hover:text-black border border-slate-400/20 rounded-full transition-all shadow-xl"
+                >
+                  <span className="text-lg">↻</span>
+                </button>
+              );
+            })}
             <button
-              onClick={() => { audio.playClick(); onRestart(); }}
+              onClick={() => { audio.playClick(); setSettingsOpen(prev => !prev); }}
               className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center bg-slate-900/70 hover:bg-white hover:text-black border border-slate-400/20 rounded-full transition-all shadow-xl"
+              aria-label="Open control layout settings"
+              title="Control Layout"
             >
-              <span className="text-lg">↻</span>
+              <span className="text-sm md:text-base">⚙</span>
             </button>
           </div>
         </div>
+
+        {settingsOpen && (
+          <div className="mt-2 p-2.5 rounded-xl border border-slate-500/35 bg-slate-950/80 backdrop-blur-md text-[10px] md:text-[11px] uppercase tracking-[0.12em]">
+            <div className="text-slate-200 font-bold mb-2">Control Layout</div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-slate-400">Desktop Buttons</span>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.desktopActionOrder === 'PAUSE_FIRST' ? 'border-cyan-300/70 text-cyan-200 bg-cyan-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('desktopActionOrder', 'PAUSE_FIRST')}
+              >
+                Pause Then Restart
+              </button>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.desktopActionOrder === 'RESTART_FIRST' ? 'border-cyan-300/70 text-cyan-200 bg-cyan-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('desktopActionOrder', 'RESTART_FIRST')}
+              >
+                Restart Then Pause
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-slate-400">Desktop Movement</span>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.desktopMovePreset === 'WASD' ? 'border-cyan-300/70 text-cyan-200 bg-cyan-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => applyDesktopPreset('WASD')}
+              >
+                WASD Preset
+              </button>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.desktopMovePreset === 'ARROWS' ? 'border-cyan-300/70 text-cyan-200 bg-cyan-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => applyDesktopPreset('ARROWS')}
+              >
+                Arrow Preset
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+              <label className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Left</span>
+                <select
+                  className="ui-settings-select"
+                  value={controlSettings.desktopBindings.moveLeft}
+                  onChange={e => updateDesktopBinding('moveLeft', e.target.value)}
+                >
+                  {DESKTOP_KEY_OPTIONS.map(option => <option key={`left-${option.code}`} value={option.code}>{option.label}</option>)}
+                </select>
+              </label>
+
+              <label className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Right</span>
+                <select
+                  className="ui-settings-select"
+                  value={controlSettings.desktopBindings.moveRight}
+                  onChange={e => updateDesktopBinding('moveRight', e.target.value)}
+                >
+                  {DESKTOP_KEY_OPTIONS.map(option => <option key={`right-${option.code}`} value={option.code}>{option.label}</option>)}
+                </select>
+              </label>
+
+              <label className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Jump</span>
+                <select
+                  className="ui-settings-select"
+                  value={controlSettings.desktopBindings.jump}
+                  onChange={e => updateDesktopBinding('jump', e.target.value)}
+                >
+                  {DESKTOP_KEY_OPTIONS.map(option => <option key={`jump-${option.code}`} value={option.code}>{option.label}</option>)}
+                </select>
+              </label>
+
+              <label className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Shift Action</span>
+                <select
+                  className="ui-settings-select"
+                  value={controlSettings.desktopBindings.toggleReality}
+                  onChange={e => updateDesktopBinding('toggleReality', e.target.value)}
+                >
+                  {DESKTOP_KEY_OPTIONS.map(option => <option key={`shift-${option.code}`} value={option.code}>{option.label}</option>)}
+                </select>
+              </label>
+
+              <label className="flex items-center justify-between gap-2 md:col-span-2">
+                <span className="text-slate-400">Size Action</span>
+                <select
+                  className="ui-settings-select"
+                  value={controlSettings.desktopBindings.toggleSize}
+                  onChange={e => updateDesktopBinding('toggleSize', e.target.value)}
+                >
+                  {DESKTOP_KEY_OPTIONS.map(option => <option key={`size-${option.code}`} value={option.code}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-slate-400">Mobile Dock</span>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.mobileTouchDock === 'BOTTOM' ? 'border-emerald-300/70 text-emerald-200 bg-emerald-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('mobileTouchDock', 'BOTTOM')}
+              >
+                Bottom
+              </button>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.mobileTouchDock === 'TOP_LEFT' ? 'border-emerald-300/70 text-emerald-200 bg-emerald-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('mobileTouchDock', 'TOP_LEFT')}
+              >
+                Top Left
+              </button>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.mobileTouchDock === 'TOP_RIGHT' ? 'border-emerald-300/70 text-emerald-200 bg-emerald-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('mobileTouchDock', 'TOP_RIGHT')}
+              >
+                Top Right
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-slate-400">Mobile Group Order</span>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.mobileClusterOrder === 'MOVE_LEFT_ACTION_RIGHT' ? 'border-fuchsia-300/70 text-fuchsia-200 bg-fuchsia-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('mobileClusterOrder', 'MOVE_LEFT_ACTION_RIGHT')}
+              >
+                Move Then Action
+              </button>
+              <button
+                className={`px-2 py-1 rounded-md border ${controlSettings.mobileClusterOrder === 'ACTION_LEFT_MOVE_RIGHT' ? 'border-fuchsia-300/70 text-fuchsia-200 bg-fuchsia-400/15' : 'border-slate-500/40 text-slate-300 bg-slate-800/40'}`}
+                onClick={() => updateLayoutSetting('mobileClusterOrder', 'ACTION_LEFT_MOVE_RIGHT')}
+              >
+                Action Then Move
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-2 grid grid-cols-2 gap-2 md:gap-3 lg:hidden">
           <div>
             <div className="text-[9px] uppercase tracking-[0.2em] text-slate-400 mb-1">Stability</div>
@@ -101,56 +408,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ gameState, inputs, onRestart, onP
         </div>
       </div>
 
-      <div className="mt-auto w-full pointer-events-auto md:hidden">
-        <div className="ui-hud-panel p-2 flex items-end justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div 
-              onPointerDown={() => setTouchInput('TOUCH_LEFT', true)}
-              onPointerUp={() => setTouchInput('TOUCH_LEFT', false)}
-              onPointerLeave={() => setTouchInput('TOUCH_LEFT', false)}
-              className="ui-control-btn w-11 h-11"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="rotate-180"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </div>
-            <div 
-              onPointerDown={() => setTouchInput('TOUCH_RIGHT', true)}
-              onPointerUp={() => setTouchInput('TOUCH_RIGHT', false)}
-              onPointerLeave={() => setTouchInput('TOUCH_RIGHT', false)}
-              className="ui-control-btn w-11 h-11"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </div>
-          </div>
-
-          <div className="flex items-end gap-2">
-            <button 
-              onPointerDown={() => { audio.playClick(); onSizeToggle(); }}
-              className={`w-11 h-11 flex flex-col items-center justify-center rounded-xl border transition-all active:scale-90 ${isSmall ? 'bg-amber-500/25 border-amber-300 text-amber-100 shadow-[0_0_16px_rgba(251,191,36,0.35)]' : 'bg-slate-900/70 border-slate-600 text-slate-200'}`}
-            >
-              <div className="text-[7px] font-black opacity-60 mb-0.5">SIZE</div>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                {isSmall ? <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/> : <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>}
-              </svg>
-            </button>
-
-            <button 
-              onPointerDown={() => { audio.playClick(); onRealityToggle(); }}
-              className={`w-11 h-11 flex flex-col items-center justify-center rounded-full border transition-all active:scale-90 ${isShifted ? 'bg-rose-500/30 border-rose-300 text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.35)]' : 'bg-slate-900/70 border-slate-600 text-slate-200'}`}
-            >
-              <div className="text-[7px] font-black opacity-60 mb-0.5">SHIFT</div>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M7 11V7l-5 5 5 5v-4h10v4l5-5-5-5v4z"/></svg>
-            </button>
-            
-            <button 
-              onPointerDown={() => setTouchInput('TOUCH_JUMP', true)}
-              onPointerUp={() => setTouchInput('TOUCH_JUMP', false)}
-              onPointerLeave={() => setTouchInput('TOUCH_JUMP', false)}
-              className="w-14 h-14 bg-gradient-to-br from-sky-500/45 to-cyan-400/25 border border-sky-300 flex flex-col items-center justify-center rounded-full active:scale-90 transition-all shadow-[0_0_22px_rgba(56,189,248,0.4)]"
-            >
-              <div className="text-[8px] font-black mb-0.5">JUMP</div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" className={isShifted ? 'rotate-180' : ''}><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-            </button>
-          </div>
+      <div className={mobileDockClassName}>
+        <div className={`ui-hud-panel p-2 flex items-end gap-2 ${isBottomMobileDock ? 'justify-between w-full' : 'justify-start'}`}>
+          {mobileClusters}
         </div>
       </div>
 

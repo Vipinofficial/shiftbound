@@ -160,6 +160,36 @@ class AudioManager {
     shimmer.stop(now + 0.42);
   }
 
+  playMonsterHit() {
+    this.resume();
+    if (!this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    const bite = this.ctx.createOscillator();
+    const biteGain = this.ctx.createGain();
+    bite.type = 'square';
+    bite.frequency.setValueAtTime(260, now);
+    bite.frequency.exponentialRampToValueAtTime(120, now + 0.11);
+    biteGain.gain.setValueAtTime(0.16, now);
+    biteGain.gain.exponentialRampToValueAtTime(0.01, now + 0.13);
+    bite.connect(biteGain);
+    biteGain.connect(this.masterGain);
+    bite.start(now);
+    bite.stop(now + 0.13);
+
+    const sting = this.ctx.createOscillator();
+    const stingGain = this.ctx.createGain();
+    sting.type = 'sawtooth';
+    sting.frequency.setValueAtTime(420, now + 0.03);
+    sting.frequency.exponentialRampToValueAtTime(180, now + 0.16);
+    stingGain.gain.setValueAtTime(0.08, now + 0.03);
+    stingGain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+    sting.connect(stingGain);
+    stingGain.connect(this.masterGain);
+    sting.start(now + 0.03);
+    sting.stop(now + 0.18);
+  }
+
   playWin() {
     this.resume();
     if (!this.ctx || !this.masterGain) return;

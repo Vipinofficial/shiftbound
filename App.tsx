@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GameState, Reality, PlayerSize } from './types';
+import { GameState, ControlLayoutSettings, DifficultyMode, FailReason } from './types';
 import { LEVELS } from './levels';
 import GameCanvas from './GameCanvas';
 import UIOverlay from './UIOverlay';
@@ -8,6 +8,32 @@ import { audio } from './audio';
 
 const STABILITY_COST_SHIFT = 15;
 const STABILITY_COST_SIZE = 10;
+const CONTROL_SETTINGS_STORAGE_KEY = 'shiftbound-control-layout-v1';
+const DIFFICULTY_STORAGE_KEY = 'shiftbound-difficulty-mode-v1';
+
+const WASD_BINDINGS = {
+  moveLeft: 'KeyA',
+  moveRight: 'KeyD',
+  jump: 'Space',
+  toggleReality: 'ShiftLeft',
+  toggleSize: 'ControlLeft'
+};
+
+const ARROW_BINDINGS = {
+  moveLeft: 'ArrowLeft',
+  moveRight: 'ArrowRight',
+  jump: 'Space',
+  toggleReality: 'ShiftRight',
+  toggleSize: 'ControlRight'
+};
+
+const DEFAULT_CONTROL_SETTINGS: ControlLayoutSettings = {
+  desktopActionOrder: 'PAUSE_FIRST',
+  desktopMovePreset: 'WASD',
+  desktopBindings: WASD_BINDINGS,
+  mobileTouchDock: 'BOTTOM',
+  mobileClusterOrder: 'MOVE_LEFT_ACTION_RIGHT'
+};
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>({
@@ -22,6 +48,7 @@ const App: React.FC = () => {
     shardsTotal: 0,
     resonance: 0,
     score: 0,
+    hardLives: 3,
     lastLevelScore: 0,
     totalAttempts: 0,
     maxLevelReached: 0,
@@ -30,6 +57,48 @@ const App: React.FC = () => {
   const inputRef = useRef<Record<string, boolean>>({});
   const shardChainRef = useRef<number>(0);
   const lastShardPickupRef = useRef<number>(0);
+  const [controlSettings, setControlSettings] = useState<ControlLayoutSettings>(() => {
+    if (typeof window === 'undefined') return DEFAULT_CONTROL_SETTINGS;
+
+    try {
+      const stored = window.localStorage.getItem(CONTROL_SETTINGS_STORAGE_KEY);
+      if (!stored) return DEFAULT_CONTROL_SETTINGS;
+      const parsed = JSON.parse(stored) as Partial<ControlLayoutSettings>;
+      const fallbackBindings = parsed.desktopMovePreset === 'ARROWS' ? ARROW_BINDINGS : WASD_BINDINGS;
+      return {
+        ...DEFAULT_CONTROL_SETTINGS,
+        ...parsed,
+        desktopBindings: {
+          ...fallbackBindings,
+          ...(parsed.desktopBindings ?? {})
+        }
+      };
+    } catch {
+      return DEFAULT_CONTROL_SETTINGS;
+    }
+  });
+  const [difficultyMode, setDifficultyMode] = useState<DifficultyMode>(() => {
+    if (typeof window === 'undefined') return 'INTERMEDIATE';
+    const stored = window.localStorage.getItem(DIFFICULTY_STORAGE_KEY);
+    if (stored === 'EASY' || stored === 'INTERMEDIATE' || stored === 'HARD') return stored;
+    return 'INTERMEDIATE';
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CONTROL_SETTINGS_STORAGE_KEY, JSON.stringify(controlSettings));
+    } catch {
+      // Ignore persistence errors so gameplay remains unaffected.
+    }
+  }, [controlSettings]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DIFFICULTY_STORAGE_KEY, difficultyMode);
+    } catch {
+      // Ignore persistence errors so gameplay remains unaffected.
+    }
+  }, [difficultyMode]);
 
   const startLevel = useCallback((levelIndex: number, playClickSound: boolean = true) => {
     if (playClickSound) audio.playClick();
@@ -50,11 +119,12 @@ const App: React.FC = () => {
       shardsCollected: 0,
       shardsTotal: level.shards.length,
       resonance: 0,
+      hardLives: (prev.status === 'MENU' && levelIndex === 0) || prev.status === 'GAMEOVER' ? 3 : prev.hardLives,
       lastLevelScore: 0,
       totalAttempts: prev.totalAttempts + 1,
       maxLevelReached: Math.max(prev.maxLevelReached, levelIndex + 1),
       ...(prev.status === 'MENU' && levelIndex === 0
-        ? { score: 0, totalAttempts: 1, maxLevelReached: 1 }
+        ? { score: 0, hardLives: 3, totalAttempts: 1, maxLevelReached: 1 }
         : {}),
     }));
   }, []);
@@ -94,10 +164,34 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const handleLevelFail = useCallback(() => {
+  const handleLevelFail = useCallback((reason: FailReason = 'UNKNOWN') => {
     audio.playFail();
-    startLevel(0, false);
-  }, [startLevel]);
+    startLevel(gameState.currentLevel, false);
+  }, [gameState.currentLevel, startLevel]);
+
+  const handleMonsterDamage = useCallback((damage: number) => {
+    if (difficultyMode !== 'HARD') return;
+
+    setGameState(prev => {
+      if (prev.status !== 'PLAYING') return prev;
+      audio.playMonsterHit();
+      const nextLives = Math.max(0, Math.round((prev.hardLives - damage) * 2) / 2);
+
+      if (nextLives <= 0) {
+        audio.playFail();
+        return {
+          ...prev,
+          hardLives: 0,
+          status: 'GAMEOVER'
+        };
+      }
+
+      return {
+        ...prev,
+        hardLives: nextLives
+      };
+    });
+  }, [difficultyMode]);
 
   const toggleReality = useCallback(() => {
     setGameState(prev => {
@@ -169,7 +263,7 @@ const App: React.FC = () => {
       interval = setInterval(() => {
         setGameState(prev => {
           if (prev.timeRemaining <= 0) {
-            handleLevelFail();
+            handleLevelFail('TIME');
             return prev;
           }
           const newStability = Math.min(100, prev.stability + 0.8);
@@ -229,6 +323,26 @@ const App: React.FC = () => {
               <div className="ui-pill">
                 <div className="ui-pill-label">Risk Model</div>
                 <div className="ui-pill-value">Time + Stability</div>
+              </div>
+            </div>
+
+            <div className="mb-8 ui-pill text-left">
+              <div className="ui-pill-label">Difficulty</div>
+              <div className="flex flex-wrap gap-2">
+                {(['EASY', 'INTERMEDIATE', 'HARD'] as DifficultyMode[]).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => { audio.playClick(); setDifficultyMode(mode); }}
+                    className={`px-3 py-1.5 rounded-lg border text-[11px] font-black tracking-[0.12em] uppercase transition-all ${difficultyMode === mode ? 'border-cyan-300/80 bg-cyan-400/20 text-cyan-100' : 'border-slate-500/50 bg-slate-800/40 text-slate-300 hover:bg-slate-700/45'}`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2 text-[10px] text-slate-400 uppercase tracking-[0.1em]">
+                {difficultyMode === 'EASY' && 'Easy: Lava respawns you at your latest safe point and keeps progress.'}
+                {difficultyMode === 'INTERMEDIATE' && 'Intermediate: Falling in lava restarts the current level.'}
+                {difficultyMode === 'HARD' && 'Hard: Portal guardians scale from mild at Level 2 to brutal at the final level.'}
               </div>
             </div>
 
@@ -293,8 +407,11 @@ const App: React.FC = () => {
             level={LEVELS[gameState.currentLevel]} 
             gameState={gameState} 
             inputs={inputRef}
+            controlSettings={controlSettings}
+            difficultyMode={difficultyMode}
             onWin={handleLevelWin}
             onFail={handleLevelFail}
+            onMonsterDamage={handleMonsterDamage}
             onCollectShard={handleShardCollect}
             onRealityChange={toggleReality}
             onSizeChange={toggleSize}
@@ -302,11 +419,14 @@ const App: React.FC = () => {
           <UIOverlay 
             gameState={gameState} 
             inputs={inputRef}
+            controlSettings={controlSettings}
+            difficultyMode={difficultyMode}
             onRestart={restartLevel} 
             onPause={() => setGameState(prev => prev.status === 'PLAYING' ? { ...prev, status: 'PAUSED' } : prev)}
             onResume={() => setGameState(prev => ({ ...prev, status: 'PLAYING' }))}
             onRealityToggle={toggleReality}
             onSizeToggle={toggleSize}
+            onControlSettingsChange={setControlSettings}
           />
         </div>
       )}

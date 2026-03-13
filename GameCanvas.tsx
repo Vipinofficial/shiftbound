@@ -1,15 +1,19 @@
 
 import React, { useRef, useEffect } from 'react';
-import { Level, GameState, Reality, Entity, Shard, Platform } from './types';
+import { Level, GameState, Reality, Entity, Shard, Platform, ControlLayoutSettings, DifficultyMode, FailReason } from './types';
 import { CANVAS_WIDTH, CANVAS_HEIGHT, PHYSICS, THEME } from './constants';
 import { audio } from './audio';
+import { LEVELS } from './levels';
 
 interface GameCanvasProps {
   level: Level;
   gameState: GameState;
   inputs: React.MutableRefObject<Record<string, boolean>>;
+  controlSettings: ControlLayoutSettings;
+  difficultyMode: DifficultyMode;
   onWin: () => void;
-  onFail: () => void;
+  onFail: (reason?: FailReason) => void;
+  onMonsterDamage: (damage: number) => void;
   onCollectShard: () => void;
   onRealityChange: () => void;
   onSizeChange: () => void;
@@ -19,7 +23,30 @@ const SPRITE_SIZE = 64;
 const IDLE_FRAMES = 4;
 const RUN_FRAMES = 6;
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin, onFail, onCollectShard, onRealityChange, onSizeChange }) => {
+interface LavaMonster {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  vx: number;
+  vy: number;
+  angle: number;
+  orbitRadius: number;
+  orbitSpeed: number;
+  aggroRadius: number;
+  dashSpeed: number;
+  dashDuration: number;
+  recoverLerp: number;
+  threatLevel: number;
+  attackCooldown: number;
+  dashTimer: number;
+  state: 'ORBIT' | 'DASH' | 'RECOVER';
+}
+
+const LAST_LEVEL_ID = LEVELS[LEVELS.length - 1]?.id ?? 12;
+
+const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, controlSettings, difficultyMode, onWin, onFail, onMonsterDamage, onCollectShard, onRealityChange, onSizeChange }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const spriteSheetRef = useRef<HTMLCanvasElement | null>(null);
   const shardsRef = useRef<Shard[]>([]);
@@ -48,12 +75,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
   const realityRef = useRef<Reality>(gameState.reality);
   const playerSizeRef = useRef(gameState.playerSize);
   const statusRef = useRef<GameState['status']>(gameState.status);
+  const difficultyModeRef = useRef<DifficultyMode>(difficultyMode);
   const isGroundedRef = useRef<boolean>(false);
   const coyoteTimeRef = useRef<number>(0);
   const shiftCooldownRef = useRef<number>(0);
   const particlesRef = useRef<{x: number, y: number, vx: number, vy: number, life: number, color: string}[]>([]);
   const lavaDeathRef = useRef<{ active: boolean; timer: number }>({ active: false, timer: 0 });
   const teleportRef = useRef<{ active: boolean; timer: number; duration: number }>({ active: false, timer: 0, duration: 28 });
+  const lastSafePositionRef = useRef<{ x: number; y: number }>({ x: level.playerStart.x, y: level.playerStart.y });
+  const lavaMonstersRef = useRef<LavaMonster[]>([]);
+  const monsterDamageCooldownRef = useRef<number>(0);
 
   const normalizePlatformsForLevel = (sourcePlatforms: Platform[], levelId: number): Platform[] => {
     const levelIntensity = Math.min(1, Math.max(0, (levelId - 1) / 21));
@@ -104,6 +135,47 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       normalized.initialY = normalized.y;
 
       return normalized;
+    });
+  };
+
+  const createLavaMonsters = (currentLevel: Level, mode: DifficultyMode): LavaMonster[] => {
+    if (mode !== 'HARD' || currentLevel.id < 2) return [];
+
+    const goalCx = currentLevel.goal.x + currentLevel.goal.width / 2;
+    const goalCy = currentLevel.goal.y + currentLevel.goal.height / 2;
+    const progress = Math.min(1, Math.max(0, (currentLevel.id - 2) / Math.max(1, LAST_LEVEL_ID - 2)));
+    const count = 2 + Math.floor(progress * 4);
+
+    return Array.from({ length: count }).map((_, idx) => {
+      const size = 16 + progress * 9;
+      const angle = (Math.PI * 2 * idx) / count;
+      const orbitRadius = 122 - progress * 44 + idx * 5;
+      const aggroRadius = 150 + progress * 150;
+      const dashSpeed = 4.8 + progress * 4.2;
+      const dashDuration = Math.round(14 + progress * 10);
+      const recoverLerp = 0.09 + progress * 0.2;
+      const cooldown = Math.round(120 - progress * 66 + idx * 6);
+
+      return {
+        id: `portal-guardian-${currentLevel.id}-${idx}`,
+        x: goalCx + Math.cos(angle) * orbitRadius - size / 2,
+        y: goalCy + Math.sin(angle) * orbitRadius - size / 2,
+        width: size,
+        height: size,
+        vx: 0,
+        vy: 0,
+        angle,
+        orbitRadius,
+        orbitSpeed: 0.008 + progress * 0.028 + idx * 0.0016,
+        aggroRadius,
+        dashSpeed,
+        dashDuration,
+        recoverLerp,
+        threatLevel: progress,
+        attackCooldown: cooldown,
+        dashTimer: 0,
+        state: 'ORBIT'
+      };
     });
   };
 
@@ -273,7 +345,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
     realityRef.current = gameState.reality;
     playerSizeRef.current = gameState.playerSize;
     statusRef.current = gameState.status;
-  }, [gameState.reality, gameState.playerSize, gameState.status]);
+    difficultyModeRef.current = difficultyMode;
+  }, [gameState.reality, gameState.playerSize, gameState.status, difficultyMode]);
 
   useEffect(() => {
     playerRef.current = {
@@ -285,27 +358,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
     };
     shardsRef.current = level.shards.map(s => ({ ...s }));
     platformsRef.current = normalizePlatformsForLevel(level.platforms, level.id);
+    lavaMonstersRef.current = createLavaMonsters(level, difficultyMode);
     isGroundedRef.current = false;
     coyoteTimeRef.current = 0;
     lavaDeathRef.current = { active: false, timer: 0 };
     teleportRef.current = { active: false, timer: 0, duration: 28 };
-  }, [level]);
+    lastSafePositionRef.current = { x: level.playerStart.x, y: level.playerStart.y };
+    monsterDamageCooldownRef.current = 0;
+  }, [level, gameState.attempts, difficultyMode]);
 
   useEffect(() => {
+    const desktopBindings = controlSettings.desktopBindings;
+    const boundDesktopKeys = new Set([
+      desktopBindings.moveLeft,
+      desktopBindings.moveRight,
+      desktopBindings.jump,
+      desktopBindings.toggleReality,
+      desktopBindings.toggleSize
+    ]);
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (statusRef.current !== 'PLAYING') return;
       if (teleportRef.current.active || lavaDeathRef.current.active) return;
+      if (boundDesktopKeys.has(e.code) || e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
       inputs.current[e.code] = true;
-      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && shiftCooldownRef.current <= 0) {
+      if (e.code === desktopBindings.toggleReality && shiftCooldownRef.current <= 0) {
         onRealityChange();
         shiftCooldownRef.current = 25;
       }
-      if ((e.code === 'ControlLeft' || e.code === 'ControlRight') && shiftCooldownRef.current <= 0) {
+      if (e.code === desktopBindings.toggleSize && shiftCooldownRef.current <= 0) {
         onSizeChange();
         shiftCooldownRef.current = 25;
       }
     };
-    const handleKeyUp = (e: KeyboardEvent) => { inputs.current[e.code] = false; };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (boundDesktopKeys.has(e.code) || e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+      inputs.current[e.code] = false;
+    };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
@@ -361,8 +450,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
         }
 
         if (lavaDeathRef.current.timer <= 0) {
-          onFail();
-          return;
+          if (difficultyModeRef.current === 'EASY') {
+            const safePosition = lastSafePositionRef.current;
+            player.x = safePosition.x;
+            player.y = safePosition.y;
+            player.vx = 0;
+            player.vy = 0;
+            player.trail = [];
+            lavaDeathRef.current = { active: false, timer: 0 };
+          } else {
+            onFail('LAVA');
+            return;
+          }
         }
       }
 
@@ -413,9 +512,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       player.width = 28 * sizeMultiplier;
       player.height = 42 * sizeMultiplier;
       
-      const moveLeft = curInputs['KeyA'] || curInputs['ArrowLeft'] || curInputs['TOUCH_LEFT'];
-      const moveRight = curInputs['KeyD'] || curInputs['ArrowRight'] || curInputs['TOUCH_RIGHT'];
-      const jumpInput = curInputs['Space'] || curInputs['KeyW'] || curInputs['ArrowUp'] || curInputs['TOUCH_JUMP'];
+      const moveLeft = curInputs['TOUCH_LEFT'] || curInputs[desktopBindings.moveLeft];
+      const moveRight = curInputs['TOUCH_RIGHT'] || curInputs[desktopBindings.moveRight];
+      const jumpInput = curInputs['TOUCH_JUMP'] || curInputs[desktopBindings.jump];
 
       const moveSpeed = PHYSICS.MOVE_SPEED * (playerSizeRef.current === 'SMALL' ? 1.4 : 1);
       if (!lavaDeathRef.current.active) {
@@ -459,6 +558,59 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
           p.vx = p.x - oldX;
           p.vy = p.y - oldY;
         }
+      });
+      const goalEntity = level.goal;
+      const goalCx = goalEntity.x + goalEntity.width / 2;
+      const goalCy = goalEntity.y + goalEntity.height / 2;
+      const playerCx = player.x + player.width / 2;
+      const playerCy = player.y + player.height / 2;
+
+      lavaMonstersRef.current.forEach(monster => {
+        const monsterCx = monster.x + monster.width / 2;
+        const monsterCy = monster.y + monster.height / 2;
+        const playerDx = playerCx - monsterCx;
+        const playerDy = playerCy - monsterCy;
+        const playerDistance = Math.hypot(playerDx, playerDy);
+        const goalDistance = Math.hypot(playerCx - goalCx, playerCy - goalCy);
+        const inGuardianZone = goalDistance < 260;
+        const canDash = monster.attackCooldown <= 0;
+
+        monster.attackCooldown = Math.max(0, monster.attackCooldown - 1);
+
+        if (monster.state === 'ORBIT' && inGuardianZone && canDash && playerDistance < monster.aggroRadius) {
+          const dashNorm = playerDistance || 1;
+          monster.vx = (playerDx / dashNorm) * monster.dashSpeed;
+          monster.vy = (playerDy / dashNorm) * monster.dashSpeed;
+          monster.dashTimer = monster.dashDuration;
+          monster.state = 'DASH';
+        }
+
+        if (monster.state === 'DASH') {
+          monster.x += monster.vx;
+          monster.y += monster.vy;
+          monster.vx *= 0.96;
+          monster.vy *= 0.96;
+          monster.dashTimer--;
+
+          if (monster.dashTimer <= 0) {
+            monster.attackCooldown = Math.round(95 - monster.threatLevel * 48);
+            monster.state = 'RECOVER';
+          }
+        } else {
+          monster.angle += monster.orbitSpeed;
+          const targetX = goalCx + Math.cos(monster.angle) * monster.orbitRadius - monster.width / 2;
+          const targetY = goalCy + Math.sin(monster.angle) * monster.orbitRadius - monster.height / 2;
+          const recoverLerp = monster.state === 'RECOVER' ? monster.recoverLerp : 0.08 + monster.threatLevel * 0.07;
+          monster.x += (targetX - monster.x) * recoverLerp;
+          monster.y += (targetY - monster.y) * recoverLerp;
+
+          if (monster.state === 'RECOVER' && Math.hypot(targetX - monster.x, targetY - monster.y) < 6) {
+            monster.state = 'ORBIT';
+          }
+        }
+
+        monster.x = Math.max(0, Math.min(CANVAS_WIDTH - monster.width, monster.x));
+        monster.y = Math.max(0, Math.min(CANVAS_HEIGHT - monster.height, monster.y));
       });
 
       player.animTimer++;
@@ -519,6 +671,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
 
       if (!isGroundedRef.current && coyoteTimeRef.current > 0) coyoteTimeRef.current--;
       if (isGroundedRef.current) coyoteTimeRef.current = PHYSICS.COYOTE_TIME;
+      if (isGroundedRef.current && !lavaDeathRef.current.active && !teleportRef.current.active) {
+        lastSafePositionRef.current = { x: player.x, y: player.y };
+      }
+
+      if (!lavaDeathRef.current.active) {
+        for (const monster of lavaMonstersRef.current) {
+          if (
+            player.x < monster.x + monster.width &&
+            player.x + player.width > monster.x &&
+            player.y < monster.y + monster.height &&
+            player.y + player.height > monster.y
+          ) {
+            if (difficultyModeRef.current === 'HARD') {
+              if (monsterDamageCooldownRef.current <= 0) {
+                onMonsterDamage(0.5);
+                monsterDamageCooldownRef.current = 42;
+                const safePosition = lastSafePositionRef.current;
+                player.x = safePosition.x;
+                player.y = safePosition.y;
+                player.vx = 0;
+                player.vy = 0;
+                player.trail = [];
+              }
+            } else if (difficultyModeRef.current === 'EASY') {
+              const safePosition = lastSafePositionRef.current;
+              player.x = safePosition.x;
+              player.y = safePosition.y;
+              player.vx = 0;
+              player.vy = 0;
+              player.trail = [];
+            } else {
+              onFail('MONSTER');
+              return;
+            }
+          }
+        }
+      }
 
       particlesRef.current.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.02; });
       particlesRef.current = particlesRef.current.filter(p => p.life > 0);
@@ -534,8 +723,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       }
 
       const verticalOutMargin = Math.max(90, CANVAS_HEIGHT * 0.12);
-      if (!teleportRef.current.active && (player.y > CANVAS_HEIGHT + verticalOutMargin || player.y + player.height < -verticalOutMargin)) onFail();
+      if (!teleportRef.current.active && !lavaDeathRef.current.active && (player.y > CANVAS_HEIGHT + verticalOutMargin || player.y + player.height < -verticalOutMargin)) onFail('VOID');
       if (shiftCooldownRef.current > 0) shiftCooldownRef.current--;
+      if (monsterDamageCooldownRef.current > 0) monsterDamageCooldownRef.current--;
     };
 
     const draw = (ctx: CanvasRenderingContext2D) => {
@@ -748,6 +938,59 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
         }
       });
 
+      lavaMonstersRef.current.forEach(monster => {
+        const centerX = monster.x + monster.width / 2;
+        const centerY = monster.y + monster.height / 2;
+        const pulse = 1 + Math.sin(Date.now() / 160 + monster.angle) * 0.12;
+        const isDashing = monster.state === 'DASH';
+        const threat = monster.threatLevel;
+        const spikeCount = 6 + Math.floor(threat * 6);
+
+        const glow = ctx.createRadialGradient(centerX, centerY, 2, centerX, centerY, monster.width * 1.4);
+        glow.addColorStop(0, isDashing ? 'rgba(254, 202, 202, 0.8)' : 'rgba(251, 113, 133, 0.65)');
+        glow.addColorStop(1, 'rgba(251, 113, 133, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, monster.width * 1.25 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        const body = ctx.createLinearGradient(monster.x, monster.y, monster.x, monster.y + monster.height);
+        body.addColorStop(0, isDashing ? '#fda4af' : '#fb7185');
+        body.addColorStop(1, isDashing ? '#be123c' : '#9f1239');
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, (monster.width / 2) * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(Date.now() * (0.00035 + threat * 0.0008));
+        ctx.strokeStyle = isDashing ? 'rgba(255, 228, 230, 0.9)' : 'rgba(254, 205, 211, 0.7)';
+        ctx.lineWidth = 1.1 + threat * 1.3;
+        for (let i = 0; i < spikeCount; i++) {
+          const a = (Math.PI * 2 * i) / spikeCount;
+          const inner = monster.width * (0.48 + threat * 0.08);
+          const outer = inner + (isDashing ? 9 : 5) + threat * 7;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner);
+          ctx.lineTo(Math.cos(a) * outer, Math.sin(a) * outer);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        ctx.fillStyle = '#ffe4e6';
+        ctx.beginPath();
+        ctx.arc(centerX - 3.2, centerY - 1.5, 1.4, 0, Math.PI * 2);
+        ctx.arc(centerX + 3.2, centerY - 1.5, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#450a0a';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY + 2.2, 4.6, 0.08 * Math.PI, 0.92 * Math.PI);
+        ctx.stroke();
+      });
+
       shardsRef.current.forEach(s => {
         if (s.collected) return;
         const t = Date.now() / 1000;
@@ -952,7 +1195,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, gameState, inputs, onWin
       window.removeEventListener('keyup', handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [level, onWin, onFail, onRealityChange, onSizeChange, inputs, gameState.stability, onCollectShard]);
+  }, [
+    level,
+    onWin,
+    onFail,
+    onRealityChange,
+    onSizeChange,
+    inputs,
+    controlSettings.desktopBindings.moveLeft,
+    controlSettings.desktopBindings.moveRight,
+    controlSettings.desktopBindings.jump,
+    controlSettings.desktopBindings.toggleReality,
+    controlSettings.desktopBindings.toggleSize,
+    gameState.stability,
+    onMonsterDamage,
+    onCollectShard
+  ]);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">

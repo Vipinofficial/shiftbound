@@ -278,7 +278,7 @@ export const LEVELS: Level[] = [
       { id: 'm3', x: 760, y: 360, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'NORMAL', isMoving: true, moveRangeY: 200, moveSpeed: 0.003 },
       { id: 'm4', x: 940, y: 220, width: 150, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'SHIFTED', isMoving: true, moveRangeY: -180, moveSpeed: 0.0035 },
       { id: 'goal-base', x: 980, y: 140, width: 160, height: 20, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH' },
-      { id: 'haz-l', x: 260, y: 0, width: 20, height: 800, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true },
+      { id: 'haz-l-top', x: 260, y: 0, width: 20, height: 620, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true },
       { id: 'haz-r', x: 1120, y: 0, width: 20, height: 800, vx: 0, vy: 0, color: '', type: 'platform', reality: 'BOTH', isHazard: true }
     ],
     enemies: []
